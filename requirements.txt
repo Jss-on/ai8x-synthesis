@@ -2,7 +2,7 @@ numpy>=1.23.1,<1.24
 PyYAML>=6.0
 six>=1.16.0
 scipy>=1.8.1
-torch==1.13.0
+torch==1.13.1
 pytest~=7.1.2
 onnx>=1.12.0
 yamllint>=1.27.1,<1.28
