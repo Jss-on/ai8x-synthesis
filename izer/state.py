@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2021-2022 Maxim Integrated Products Inc. All Rights Reserved.
+# Copyright (C) 2021-2023 Maxim Integrated Products Inc. All Rights Reserved.
 #
 # Maxim Integrated Products Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -122,6 +122,7 @@ out_offset: List[int] = []
 output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
+output_config_filename: str = ''
 output_is_console: bool = True
 output_layer: List[bool] = []
 output_offset: List[int] = []

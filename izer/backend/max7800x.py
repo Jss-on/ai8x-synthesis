@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -182,7 +182,10 @@ class Backend(backend.Backend):
 
         hw_add_layers = [0] * layers
         hw_flatten = [False] * layers
+        flatten_prod = [0] * layers
         sum_hw_layers = 0
+
+        rollover = [None] * layers
 
         all_outputs_map = None
 
@@ -1022,6 +1025,12 @@ class Backend(backend.Backend):
         else:
             apifile = None
 
+        if state.generate_kat and log_intermediate:
+            memfile2 = open(os.path.join(base_directory, test_name, f'{output_filename}.csv'),
+                            mode='w', encoding='utf-8')
+        else:
+            memfile2 = None
+
         with open(os.path.join(base_directory, test_name, filename), mode='w',
                   encoding='utf-8') as memfile:
             apb = apbaccess.apbwriter(
@@ -1837,12 +1846,12 @@ class Backend(backend.Backend):
                         apb.write_lreg(group, hw_layer, tc.dev.LREG_LCTL, val,
                                        comment=' // Layer control')
 
-                        flatten_prod = 0
+                        flatten_prod[ll] = 0
                         if flatten[ll]:
                             # Store all bits, top programmed in post processing register
-                            flatten_prod = \
+                            flatten_prod[ll] = \
                                 in_expand[ll] * hw_pooled_dim[ll][0] * hw_pooled_dim[ll][1] - 1
-                            in_exp = flatten_prod & 0x0f  # Lower 4 bits only
+                            in_exp = flatten_prod[ll] & 0x0f  # Lower 4 bits only
                         elif hw_operator[ll] == op.NONE and emulate_eltwise[ll]:
                             in_exp = 0
                         else:
@@ -1964,9 +1973,9 @@ class Backend(backend.Backend):
                            hw_operator[ll] in [op.CONV2D, op.LINEAR] \
                            and hw_kernel_size[ll] == [1, 1] \
                            and (ll == 0 or not streaming[ll]):
-                            if flatten_prod >= 2**4:
-                                assert flatten_prod < 2**16
-                                val = flatten_prod << 16 | (2 * flatten_prod + 1)
+                            if flatten_prod[ll] >= 2**4:
+                                assert flatten_prod[ll] < 2**16
+                                val = flatten_prod[ll] << 16 | (2 * flatten_prod[ll] + 1)
                             else:
                                 val = 0
                         else:
@@ -2036,9 +2045,9 @@ class Backend(backend.Backend):
                         if activation[ll] == op.ACT_ABS:
                             val |= 1 << 26
 
-                        if flatten_prod >= 2**4:
+                        if flatten_prod[ll] >= 2**4:
                             hw_flatten[ll] = True
-                            val |= 1 << 27 | (flatten_prod >> 4) << 18  # flatten_ena, xpmp_cnt
+                            val |= 1 << 27 | (flatten_prod[ll] >> 4) << 18  # flatten_ena, xpmp_cnt
 
                         if hw_operator[ll] == op.CONVTRANSPOSE2D:
                             val |= 1 << 28
@@ -2460,6 +2469,7 @@ class Backend(backend.Backend):
                             apb.write_lreg(group, hw_layer, tc.dev.LREG_FMAX, val,
                                            no_verify=not tc.dev.SUPPORT_ROLLOVER_READ,
                                            comment=' // Rollover')
+                            rollover[ll] = val
 
                         # In read-ahead mode, ensure that input and output use separate
                         # instances. First, check the start addresses, then the end addresses.
@@ -3129,9 +3139,6 @@ class Backend(backend.Backend):
 
                     if state.generate_kat:
                         if log_intermediate:
-                            filename2 = f'{output_filename}-{ll}.mem'  # Intermediate output
-                            memfile2 = open(os.path.join(base_directory, test_name, filename2),
-                                            mode='w', encoding='utf-8')
                             apb2 = apbaccess.apbwriter(
                                 memfile2,
                                 verify_writes=False,
@@ -3159,6 +3166,7 @@ class Backend(backend.Backend):
                                 overwrite_ok or streaming[ll],
                                 mlator=mlator and output_layer[ll],
                                 write_gap=write_gap[ll],
+                                rollover=rollover[ll + 1] if ll < layers - 1 else None,
                             )
                         apb.verify_unload(
                             ll,
@@ -3265,6 +3273,39 @@ class Backend(backend.Backend):
         finally:
             if memfile:
                 memfile.close()
+            if memfile2:
+                memfile2.close()
+
+        if log_intermediate:
+            with open(os.path.join(base_directory, test_name,
+                                   f'{state.output_config_filename}.csv'),
+                      mode='w', encoding='utf-8') as memfile2:
+                # Save layer configuration to debug file
+                for ll in range(first_layer_used, layers):
+                    memfile2.write(
+                        f'l,{ll},'
+                        f'{tc.dev.INSTANCE_SIZE:x},'
+                        f'{1 if streaming[ll] else 0},'
+                        f'{0 if rollover[ll] is None else rollover[ll]:x},'
+                        f'{output_width[ll]},'
+                        f'{processor_map[ll]:x},'
+                        f'{flatten_prod[ll]:x},'
+                        f'{1 if hw_flatten[ll] else 0},'
+                        f'{hw_operator[ll]},'
+                        f'{in_expand[ll]},'
+                        f'{input_chan[ll]},'
+                        f'{hw_input_dim[ll][0]}x{hw_input_dim[ll][1]},'
+                        f'{hw_pooled_dim[ll][0]}x{hw_pooled_dim[ll][1]},'
+                        f'{hw_output_dim[ll][0]}x{hw_output_dim[ll][1]},'
+                        f'{pool[ll][0]}x{pool[ll][1]},'
+                        f'{pool_stride[ll][0]}x{pool_stride[ll][1]},'
+                        f'{pool_dilation[ll][0]}x{pool_dilation[ll][1]},'
+                        f'{conv_groups[ll]},'
+                        f'{hw_padding[ll][0]}x{hw_padding[ll][1]},'
+                        f'{hw_kernel_size[ll][0]}x{hw_kernel_size[ll][1]},'
+                        f'{stride[ll][0]}x{stride[ll][1]},'
+                        f'{hw_dilation[ll][0]}x{hw_dilation[ll][1]}\n'
+                    )
 
         # ----------------------------------------------------------------------------------------
         total = 0
