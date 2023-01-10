@@ -343,6 +343,8 @@ def get_parser() -> argparse.Namespace:
                             "'output-X.mem' or 'output.csv')")
     group.add_argument('--output-config-filename', default='config', metavar='S',
                        help="output config file name base (default: 'config' -> 'config.csv')")
+    group.add_argument('--output-data-filename', default='data', metavar='S',
+                       help="output data file name base (default: 'data' -> 'data.npy')")
     group.add_argument('--runtest-filename', default='run_test.sv', metavar='S',
                        help="run test file name (default: 'run_test.sv')")
     group.add_argument('--legacy-test', action='store_true', default=False,
@@ -645,6 +647,7 @@ def set_state(args: argparse.Namespace) -> None:
     state.oneshot = args.one_shot
     state.output_filename = args.output_filename
     state.output_config_filename = args.output_config_filename
+    state.output_data_filename = args.output_data_filename
     state.override_delta1 = args.override_delta1
     state.override_delta2 = args.override_delta2
     state.override_rollover = args.override_rollover

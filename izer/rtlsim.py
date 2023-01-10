@@ -1,5 +1,5 @@
 ###################################################################################################
-# Copyright (C) 2019-2022 Maxim Integrated Products, Inc. All Rights Reserved.
+# Copyright (C) 2019-2023 Maxim Integrated Products, Inc. All Rights Reserved.
 #
 # Maxim Integrated Products, Inc. Default Copyright Notice:
 # https://www.maximintegrated.com/en/aboutus/legal/copyrights.html
@@ -94,7 +94,7 @@ def create_runtest_sv(
         timeout: int,
         groups_used: Optional[List[int]] = None,
         cnn_cycles: int = 0,
-        apb: apbaccess.APB = None,
+        apb: Optional[apbaccess.APB] = None,
         input_dim: Optional[List[Tuple[int, int]]] = None,
         in_expand: Optional[List[int]] = None,
 ):
@@ -190,6 +190,12 @@ def create_runtest_sv(
                         'xuut.xsram[0].xcnn_ram.req_sram_rd\n'
                         '  `define CNN_RAD  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
                         'xuut.xsram[0].xcnn_ram.rptr\n'
+                        '  `define CNN_WRT  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sram_wrt\n'
+                        '  `define CNN_ADR  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_adr\n'
+                        '  `define CNN_DAT  `DIGITAL_TOP.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_data\n'
                         '  `define CNN_BYP  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.bypass\n'
                         '  `define CNN_STRM `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.strmact\n'
                         '  `define CNN_LYR  `DIGITAL_TOP.xuut1.x16proc[0].xproc.xuut.lyrcnt_e\n'
@@ -216,6 +222,12 @@ def create_runtest_sv(
                         'xuut.xsram[0].xcnn_ram.req_sram_rd\n'
                         '  `define CNN_RAD  tb.xchip.xuut1.x16proc[0].xproc.'
                         'xuut.xsram[0].xcnn_ram.rptr\n'
+                        '  `define CNN_WRT  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.sram_wrt\n'
+                        '  `define CNN_ADR  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_adr\n'
+                        '  `define CNN_DAT  tb.xchip.xuut1.x16proc[0].xproc.'
+                        'xuut.xsram[0].xcnn_ram.ram_data\n'
                         '  `define CNN_BYP  tb.xchip.xuut1.x16proc[0].xproc.xuut.bypass\n'
                         '  `define CNN_STRM tb.xchip.xuut1.x16proc[0].xproc.xuut.strmact\n'
                         '  `define CNN_LYR  tb.xchip.xuut1.x16proc[0].xproc.xuut.lyrcnt_e\n'
@@ -337,9 +349,11 @@ def create_runtest_sv(
                     '  assign lcnt_rsel = (`CNN_BYP  == 1\'b1)?  lcnt     :  lcnt_dly[1];\n'
                     'end\n\n'
                     'always @(posedge `CNN_CLK) begin\n'
+                    '  if (`CNN_WRT) begin\n'
+                    '    $fdisplay(fd,"w,%0h,%0h,%0d,%0d",`CNN_ADR,`CNN_DAT,-1,cycle_cnt);\n'
+                    '  end\n'
                     '  if (start_ena) begin\n'
                     '    lcnt_dly <= {lcnt_dly[8:0],lcnt};\n\n'
-                    '    cycle_cnt++;\n'
                     '    if (`CNN_SWR) begin\n'
                     '      $fdisplay(fd,"w,%0h,%0h,%0d,%0d",'
                     '`CNN_WAD,`CNN_WDT,lcnt_wsel,cycle_cnt);\n'
@@ -347,6 +361,7 @@ def create_runtest_sv(
                     '    if (`CNN_SRD) begin\n'
                     '      $fdisplay(fd,"r,%0h,0,%0d,%0d",`CNN_RAD,lcnt_rsel,cycle_cnt);\n'
                     '    end\n'
+                    '    cycle_cnt++;\n'
                     '  end\n'
                     'end\n'
                 )

@@ -123,6 +123,7 @@ output_channels: List[int] = []
 output_dim: List[List[int]] = []
 output_filename: str = ''
 output_config_filename: str = ''
+output_data_filename: str = ''
 output_is_console: bool = True
 output_layer: List[bool] = []
 output_offset: List[int] = []

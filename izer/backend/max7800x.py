@@ -1026,10 +1026,15 @@ class Backend(backend.Backend):
             apifile = None
 
         if state.generate_kat and log_intermediate:
-            memfile2 = open(os.path.join(base_directory, test_name, f'{output_filename}.csv'),
+            memfile2 = open(os.path.join(base_directory, test_name,
+                            f'{output_filename}.csv'),
                             mode='w', encoding='utf-8')
+            datafile = open(os.path.join(base_directory, test_name,
+                            f'{state.output_data_filename}.npy'),
+                            mode='wb')
         else:
             memfile2 = None
+            datafile = None
 
         with open(os.path.join(base_directory, test_name, filename), mode='w',
                   encoding='utf-8') as memfile:
@@ -2932,6 +2937,10 @@ class Backend(backend.Backend):
                         data = np.delete(data, np.s_[:input_channel_skip[ll]], axis=1)
                     data = np.delete(data, np.s_[in_chan:], axis=1)
 
+                if datafile is not None:
+                    # Log input to npy
+                    np.save(datafile, data, allow_pickle=False, fix_imports=False)
+
                 show_data(
                     ll,
                     data.shape,
@@ -2971,6 +2980,15 @@ class Backend(backend.Backend):
                                                                          test_name),
                 )
 
+                if datafile is not None:
+                    # Pooling output (pre-elementwise)
+                    if pool[ll][0] > 1 or pool[ll][1] > 1 \
+                       or pool_stride[ll][0] > 1 or pool_stride[ll][1] > 1 \
+                       or pool_dilation[ll][0] > 1 or pool_dilation[ll][1] > 1:
+                        np.save(datafile, data, allow_pickle=False, fix_imports=False)
+                    else:
+                        np.save(datafile, np.empty((0)), allow_pickle=False, fix_imports=False)
+
                 if operator[ll] == op.CONV1D:
                     if out_size[0] != in_chan \
                        or out_size[1] != pooled_dim[ll][0] or pooled_dim[ll][1] != 1:
@@ -2988,6 +3006,12 @@ class Backend(backend.Backend):
                     data = run_eltwise(data, ll)
                 else:
                     data = np.squeeze(data, axis=0)
+
+                if datafile is not None:
+                    # if operands[ll] > 1 and pool_first[ll]:
+                    np.save(datafile, data, allow_pickle=False, fix_imports=False)
+                    # else:
+                    #    np.save(datafile, np.empty((0)), allow_pickle=False, fix_imports=False)
 
                 # Convolution or passthrough
                 if operator[ll] in [op.CONV2D, op.LINEAR]:
@@ -3034,6 +3058,7 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.CONVTRANSPOSE2D:
                     if not bypass[ll]:
@@ -3067,6 +3092,7 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.CONV1D:
                     if not bypass[ll]:
@@ -3098,15 +3124,21 @@ class Backend(backend.Backend):
                         output_width=output_width[ll],
                         groups=conv_groups[ll],
                         bypass=bypass[ll],
+                        datafile=datafile,
                     )
                 elif operator[ll] == op.NONE:  # '0'D (pooling only or passthrough)
                     out_buf, out_size = passthrough_layer(
                         ll,
                         data.shape,
                         data,
+                        datafile=datafile,
                     )
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
+
+                if datafile is not None:
+                    # Operator output
+                    np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
 
                 assert out_size[0] == output_chan[ll] \
                     and out_size[1] == output_dim[ll][0] and out_size[2] == output_dim[ll][1]
@@ -3275,14 +3307,16 @@ class Backend(backend.Backend):
                 memfile.close()
             if memfile2:
                 memfile2.close()
+            if datafile:
+                datafile.close()
 
         if log_intermediate:
             with open(os.path.join(base_directory, test_name,
                                    f'{state.output_config_filename}.csv'),
-                      mode='w', encoding='utf-8') as memfile2:
+                      mode='w', encoding='utf-8') as configfile:
                 # Save layer configuration to debug file
                 for ll in range(first_layer_used, layers):
-                    memfile2.write(
+                    configfile.write(
                         f'l,{ll},'
                         f'{tc.dev.INSTANCE_SIZE:x},'
                         f'{1 if streaming[ll] else 0},'
