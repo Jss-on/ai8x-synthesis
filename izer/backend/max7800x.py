@@ -1025,16 +1025,29 @@ class Backend(backend.Backend):
         else:
             apifile = None
 
+        passfile = None
         if state.generate_kat and log_intermediate:
             memfile2 = open(os.path.join(base_directory, test_name,
                             f'{output_filename}.csv'),
                             mode='w', encoding='utf-8')
+            if state.output_pass_filename is not None:
+                passfile = open(os.path.join(base_directory, test_name,
+                                f'{state.output_pass_filename}.csv'),
+                                mode='w', encoding='utf-8')
             datafile = open(os.path.join(base_directory, test_name,
                             f'{state.output_data_filename}.npy'),
+                            mode='wb')
+            weightsfile = open(os.path.join(base_directory, test_name,
+                               f'{state.output_weights_filename}.npy'),
+                               mode='wb')
+            biasfile = open(os.path.join(base_directory, test_name,
+                            f'{state.output_bias_filename}.npy'),
                             mode='wb')
         else:
             memfile2 = None
             datafile = None
+            weightsfile = None
+            biasfile = None
 
         with open(os.path.join(base_directory, test_name, filename), mode='w',
                   encoding='utf-8') as memfile:
@@ -3136,6 +3149,31 @@ class Backend(backend.Backend):
                 else:
                     eprint(f'Unknown operator `{op.string(operator[ll])}`.')
 
+                if operator[ll] in [op.CONV2D, op.LINEAR, op.CONVTRANSPOSE2D, op.CONV1D]:
+                    if weightsfile is not None:
+                        np.save(
+                            weightsfile,
+                            hw_kernel[ll].reshape(
+                                output_chan[ll],
+                                input_chan[ll] // conv_groups[ll],
+                                hw_kernel_size[ll][0],
+                                -1,
+                            ),
+                            allow_pickle=False,
+                            fix_imports=False,
+                        )
+                    if biasfile is not None:
+                        if bias[bias_ptrs[ll]] is not None:
+                            np.save(biasfile, bias[bias_ptrs[ll]], allow_pickle=False,
+                                    fix_imports=False)
+                        else:
+                            np.save(biasfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+                else:
+                    if weightsfile is not None:
+                        np.save(weightsfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+                    if biasfile is not None:
+                        np.save(biasfile, np.empty((0)), allow_pickle=False, fix_imports=False)
+
                 if datafile is not None:
                     # Operator output
                     np.save(datafile, out_buf, allow_pickle=False, fix_imports=False)
@@ -3182,6 +3220,7 @@ class Backend(backend.Backend):
                                 input_chan=input_chan[start_layer],
                                 debug_mem=True,
                                 test_name=test_name,
+                                passfile=passfile,
                             )
                             out_map2 = datamem.allocate()
                             apb2.verify_unload(
@@ -3196,7 +3235,7 @@ class Backend(backend.Backend):
                                 out_expand_thresh[ll],
                                 output_width[ll],
                                 overwrite_ok or streaming[ll],
-                                mlator=mlator and output_layer[ll],
+                                mlator=False,  # mlator is a function of read, not write
                                 write_gap=write_gap[ll],
                                 rollover=rollover[ll + 1] if ll < layers - 1 else None,
                             )
@@ -3309,6 +3348,12 @@ class Backend(backend.Backend):
                 memfile2.close()
             if datafile:
                 datafile.close()
+            if weightsfile:
+                weightsfile.close()
+            if biasfile:
+                biasfile.close()
+            if passfile:
+                passfile.close()
 
         if log_intermediate:
             with open(os.path.join(base_directory, test_name,
@@ -3316,6 +3361,11 @@ class Backend(backend.Backend):
                       mode='w', encoding='utf-8') as configfile:
                 # Save layer configuration to debug file
                 for ll in range(first_layer_used, layers):
+                    if pool[ll][0] <= 1 and pool[ll][1] <= 1:
+                        pool_type = 'no'
+                    else:
+                        pool_type = 'avg' if pool_average[ll] else 'max'
+
                     configfile.write(
                         f'l,{ll},'
                         f'{tc.dev.INSTANCE_SIZE:x},'
@@ -3325,12 +3375,17 @@ class Backend(backend.Backend):
                         f'{processor_map[ll]:x},'
                         f'{flatten_prod[ll]:x},'
                         f'{1 if hw_flatten[ll] else 0},'
-                        f'{hw_operator[ll]},'
+                        f'{1 if flatten[ll] else 0},'
+                        f'{op.string(operator[ll])},'
+                        f'{op.string(hw_operator[ll])},'
+                        f'{op.string(eltwise[ll], elt=True)},'
                         f'{in_expand[ll]},'
                         f'{input_chan[ll]},'
                         f'{hw_input_dim[ll][0]}x{hw_input_dim[ll][1]},'
                         f'{hw_pooled_dim[ll][0]}x{hw_pooled_dim[ll][1]},'
                         f'{hw_output_dim[ll][0]}x{hw_output_dim[ll][1]},'
+                        f'{pool_type},'
+                        f'{1 if pool_first[ll] else 0},'
                         f'{pool[ll][0]}x{pool[ll][1]},'
                         f'{pool_stride[ll][0]}x{pool_stride[ll][1]},'
                         f'{pool_dilation[ll][0]}x{pool_dilation[ll][1]},'
@@ -3338,7 +3393,9 @@ class Backend(backend.Backend):
                         f'{hw_padding[ll][0]}x{hw_padding[ll][1]},'
                         f'{hw_kernel_size[ll][0]}x{hw_kernel_size[ll][1]},'
                         f'{stride[ll][0]}x{stride[ll][1]},'
-                        f'{hw_dilation[ll][0]}x{hw_dilation[ll][1]}\n'
+                        f'{hw_dilation[ll][0]}x{hw_dilation[ll][1]},'
+                        f'{out_pad[ll]},'
+                        f'{output_padding[ll][0]}x{output_padding[ll][1]}\n'
                     )
 
         # ----------------------------------------------------------------------------------------

@@ -973,6 +973,7 @@ class APBBlockLevel(APB):
             input_chan=None,
             apifile=None,
             test_name=None,
+            passfile=None,
     ):
         super().__init__(
             memfile,
@@ -982,6 +983,7 @@ class APBBlockLevel(APB):
             embedded_code=embedded_code,
         )
         self.foffs = 0
+        self.passfile = passfile
 
     def write(
             self,
@@ -1102,6 +1104,7 @@ class APBDebug(APBBlockLevel):
         assert val >= 0
         assert addr >= 0
         addr -= tc.dev.C_SRAM_BASE
+        assert addr >= 0, comment
         group = addr // tc.dev.C_GROUP_OFFS
         addr %= tc.dev.C_GROUP_OFFS
         proc = addr // (tc.dev.INSTANCE_SIZE*16)
@@ -1113,12 +1116,17 @@ class APBDebug(APBBlockLevel):
             offs = addr
         offs |= (proc | group * 4) * (tc.dev.INSTANCE_SIZE*16)  # proc is 0, 4, 8 or 12
         offs //= 4  # Switch to 32-bit word address
+        assert offs >= 0, comment
 
         # Comment is " // channel,row,col" where each of the values can be an int or a range
         if comment.startswith(' // '):
             comment = comment[4:]
 
         self.memfile.write(f'w,{offs:x},{val:x},{self.layer},{comment}\n')
+        if self.passfile is not None:
+            state.write_count += 1
+            self.passfile.write(f'w,{offs | 0x200000:x},{val:x},{self.layer},'
+                                f'{state.write_count}\n')
         self.foffs += 1
 
 
