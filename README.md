@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-January 23, 2023
+February 10, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -61,8 +61,8 @@ PyTorch operating system and hardware support are constantly evolving. This docu
 Full support and documentation are provided for the following platform:
 
 * CPU: 64-bit amd64/x86_64 “PC” with [Ubuntu Linux 20.04 LTS](https://ubuntu.com/download/server)
-* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 11](https://developer.nvidia.com/cuda-toolkit-archive)
-* [PyTorch 1.12.1](https://pytorch.org/get-started/locally/) on Python 3.8.x
+* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 11.7](https://developer.nvidia.com/cuda-toolkit-archive)
+* [PyTorch 1.13.1](https://pytorch.org/get-started/locally/) on Python 3.8.x
 
 Limited support and advice for using other hardware and software combinations is available as follows.
 
@@ -84,7 +84,7 @@ If WSL2 is not available, it is also possible (but not recommended due to inhere
 
 ##### macOS
 
-The software works on macOS, but model training suffers from the lack of hardware acceleration.
+The software works on macOS and uses MPS acceleration on Apple Silicon. On Intel CPUs, model training suffers from the lack of hardware acceleration.
 
 ##### Virtual Machines (Unsupported)
 
@@ -96,19 +96,17 @@ This software also works inside Docker containers. However, CUDA support inside 
 
 #### PyTorch and Python
 
-The officially supported version of [PyTorch is 1.12.1](https://pytorch.org/get-started/locally/) running on Python 3.8.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
+The officially supported version of [PyTorch is 1.13.1](https://pytorch.org/get-started/locally/) running on Python 3.8.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
 
 #### Hardware Acceleration
 
-When going beyond simple models, model training does not work well without CUDA hardware acceleration. The network loader (“izer”) does <u>not</u> require CUDA, and very simple models can also be trained on systems without CUDA.
+When going beyond simple models, model training does not work well without hardware acceleration – Nvidia CUDA, AMD ROCm, or Apple Silicon MPS. The network loader (“izer”) does <u>not</u> require hardware acceleration, and very simple models can also be trained on systems without hardware acceleration.
 
-* CUDA requires Nvidia GPUs.
-
-* There is a PyTorch pre-release with ROCm acceleration for certain AMD GPUs on Linux ([see blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/)), but this is not currently covered by the installation instructions in this document, and it is not supported.
-
-* At this time, there is neither CUDA nor ROCm nor Neural Engine support on macOS, and therefore no hardware acceleration (there is a pre-release version of PyTorch with M1 acceleration on macOS 12.3 or later, and M1 acceleration will be supported in a future release of these tools).
-
+* CUDA requires modern Nvidia GPUs. This is the most compatible, and best supported hardware accelerator.
+* ROCm requires certain AMD GPUs, see [blog entry](https://pytorch.org/blog/pytorch-for-amd-rocm-platform-now-available-as-python-package/).
+* MPS requires Apple Silicon (M1 or newer) and macOS 12.3 or newer.
 * PyTorch does not include CUDA support for aarch64/arm64 systems. *Rebuilding PyTorch from source is not covered by this document.*
+
 
 ##### Using Multiple GPUs
 
@@ -159,7 +157,7 @@ Some additional system packages are required, and installation of these addition
 
 ##### macOS
 
-On macOS (no CUDA support available) use:
+On macOS use:
 
 ```shell
 $ brew install libomp libsndfile tcl-tk
@@ -223,7 +221,7 @@ Python 2 **will not function correctly** with the MAX78000/MAX78002 tools. If th
 
 It is not necessary to install Python 3.8 system-wide, or to rely on the system-provided Python. To manage Python versions, instead use `pyenv` (<https://github.com/pyenv/pyenv>). This allows multiple Python versions to co-exist on the same system without interfering with the system or with one another.
 
-On macOS (no CUDA support available):
+On macOS:
 
 ```shell
 $ brew install pyenv pyenv-virtualenv
@@ -265,7 +263,7 @@ $ ~/.pyenv/bin/pyenv init
 
 *Note: Installing both conda and pyenv in parallel may cause issues. Ensure that the pyenv initialization tasks are executed <u>before</u> any conda related tasks.*
 
-Next, close the Terminal, open a new Terminal and install Python 3.8.11.
+Next, close the Terminal, open a new Terminal and install Python 3.8.16.
 
 On macOS:
 
@@ -277,13 +275,13 @@ $ env \
   PKG_CONFIG_PATH="$(brew --prefix tcl-tk)/lib/pkgconfig" \
   CFLAGS="-I$(brew --prefix tcl-tk)/include" \
   PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='-I$(brew --prefix tcl-tk)/include' --with-tcltk-libs='-L$(brew --prefix tcl-tk)/lib -ltcl8.6 -ltk8.6'" \
-  pyenv install 3.8.11
+  pyenv install 3.8.16
 ```
 
 On Linux, including WSL2:
 
 ```shell
-$ pyenv install 3.8.11
+$ pyenv install 3.8.16
 ```
 
 #### git Environment
@@ -323,17 +321,17 @@ $ cd ai8x-training
 
 The default branch is “develop” which is updated most frequently. If you want to use the “master” branch instead, switch to “master” using `git checkout master`.
 
-If using pyenv, set the local directory to use Python 3.8.11.
+If using pyenv, set the local directory to use Python 3.8.16.
 
 ```shell
-$ pyenv local 3.8.11
+$ pyenv local 3.8.16
 ```
 
 In all cases, verify that a 3.8.x version of Python is used:
 
 ```shell
 $ python --version
-Python 3.8.11
+Python 3.8.16
 ```
 
 If this does <u>*not*</u> return version 3.8.x, please install and initialize [pyenv](#python-38).
@@ -378,7 +376,13 @@ For CUDA 11.x on native Windows:
 (ai8x-training) $ pip3 install -r requirements-win-cu11.txt
 ```
 
-For all other systems, including macOS, and CUDA 10.2 on Linux:
+For ROCm 5.2 on Linux:
+
+```shell
+(ai8x-training) $ pip3 install -r requirements-rocm.txt
+```
+
+For all other systems, including macOS:
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements.txt
@@ -402,7 +406,7 @@ After a small delay of typically a day, a “Release” tag is created on GitHub
 
 In addition to code updated in the repository itself, **submodules and Python libraries may have been updated as well**.
 
-Major upgrades (such as updating from PyTorch 1.8 to PyTorch 1.12) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
+Major upgrades (such as updating from PyTorch 1.8 to PyTorch 1.13) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
 
 For minor updates, pull the latest code and install the updated wheels:
 
@@ -419,11 +423,11 @@ Please *also* update the MSDK or use the Maintenance Tool as documented in the [
 
 ##### Python Version Updates
 
-Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.11` fail,
+Updating Python may require updating `pyenv` first. Should `pyenv install 3.8.16` fail,
 
 ```shell
-$ pyenv install 3.8.11
-python-build: definition not found: 3.8.11
+$ pyenv install 3.8.16
+python-build: definition not found: 3.8.16
 ```
 
 then `pyenv` must be updated. On macOS, use:
@@ -446,19 +450,19 @@ $
 The update should now succeed:
 
 ```shell
-$ pyenv install 3.8.11
-Downloading Python-3.8.11.tar.xz...
--> https://www.python.org/ftp/python/3.8.11/Python-3.8.11.tar.xz
-Installing Python-3.8.11...
+$ pyenv install 3.8.16
+Downloading Python-3.8.16.tar.xz...
+-> https://www.python.org/ftp/python/3.8.16/Python-3.8.16.tar.xz
+Installing Python-3.8.16...
 ...
-$ pyenv local 3.8.11
+$ pyenv local 3.8.16
 ```
 
 
 
 #### Synthesis Project
 
-The `ai8x-synthesis` project does not require CUDA.
+The `ai8x-synthesis` project does not require hardware acceleration.
 
 Start by deactivating the `ai8x-training` environment if it is active.
 
@@ -478,14 +482,14 @@ If you want to use the main branch, switch to “master” using the optional co
 If using pyenv, run:
 
 ```shell
-$ pyenv local 3.8.11
+$ pyenv local 3.8.16
 ```
 
 In all cases, make sure Python 3.8.x is the active version:
 
 ```shell
 $ python --version
-Python 3.8.11
+Python 3.8.16
 ```
 
 If this does <u>*not*</u> return version 3.8.x, please install and initialize [pyenv](#python-38).
@@ -1294,30 +1298,31 @@ The example shows a fractionally-strided convolution with a stride of 2, a pad o
 
 If hardware acceleration is not available, skip the following two steps and continue with [Training Script](#training-script).
 
-1. Before the first training session, check that CUDA hardware acceleration is available using `nvidia-smi -q`:
+Before the first training session, check that hardware acceleration is available and recognized by PyTorch:
 
-   ```shell
-   (ai8x-training) $ nvidia-smi -q
-   ...
-   Driver Version                            : 470.57.02
-   CUDA Version                              : 11.4
-
-   Attached GPUs                             : 1
-   GPU 00000000:01:00.0
-       Product Name                          : NVIDIA TITAN RTX
-       Product Brand                         : Titan
-   ...
-   ```
-
-2. Verify that PyTorch recognizes CUDA:
-
-   ```shell
+ ```shell
    (ai8x-training) $ python check_cuda.py
-   System:            linux
-   Python version:    3.8.11 (default, Jul 14 2021, 12:46:05) [GCC 9.3.0]
-   PyTorch version:   1.12.1+cu116
-   CUDA acceleration: available in PyTorch
-   ```
+   System:                 linux
+   Python version:         3.8.16 (default, Feb  9 2023, 14:12:01) [GCC 9.3.0]
+   PyTorch version:        1.13.1+cu117
+   CUDA/ROCm acceleration: available in PyTorch
+   MPS acceleration:       NOT available in PyTorch
+ ```
+
+CUDA can be diagnosed using `nvidia-smi -q`:
+
+```shell
+(ai8x-training) $ nvidia-smi -q
+...
+Driver Version                            : 515.65.01
+CUDA Version                              : 11.7
+
+Attached GPUs                             : 1
+GPU 00000000:01:00.0
+    Product Name                          : NVIDIA TITAN RTX
+    Product Brand                         : Titan
+...
+```
 
 ### Training Script
 
