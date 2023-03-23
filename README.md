@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-February 10, 2023
+March 22, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -61,8 +61,8 @@ PyTorch operating system and hardware support are constantly evolving. This docu
 Full support and documentation are provided for the following platform:
 
 * CPU: 64-bit amd64/x86_64 “PC” with [Ubuntu Linux 20.04 LTS](https://ubuntu.com/download/server)
-* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 11.7](https://developer.nvidia.com/cuda-toolkit-archive)
-* [PyTorch 1.13.1](https://pytorch.org/get-started/locally/) on Python 3.8.x
+* GPU for hardware acceleration (optional but highly recommended): Nvidia with [CUDA 11.8](https://developer.nvidia.com/cuda-toolkit-archive)
+* [PyTorch 2.0](https://pytorch.org/get-started/locally/) on Python 3.8.x
 
 Limited support and advice for using other hardware and software combinations is available as follows.
 
@@ -96,7 +96,7 @@ This software also works inside Docker containers. However, CUDA support inside 
 
 #### PyTorch and Python
 
-The officially supported version of [PyTorch is 1.13.1](https://pytorch.org/get-started/locally/) running on Python 3.8.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
+The officially supported version of [PyTorch is 2.0](https://pytorch.org/get-started/locally/) running on Python 3.8.x. Newer versions will typically work, but are not covered by support, documentation, and installation scripts.
 
 #### Hardware Acceleration
 
@@ -362,15 +362,15 @@ Then continue with
 (ai8x-training) $ pip3 install -U pip wheel setuptools
 ```
 
-The next step differs depending on whether the system uses CUDA 11.x, or not.
+The next step differs depending on whether the system uses CUDA 11/12, or not.
 
-For CUDA 11.x on Linux, including WSL2:
+For CUDA 11/12 on Linux, including WSL2:
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements-cu11.txt
 ```
 
-For CUDA 11.x on native Windows:
+For CUDA 11/12 on native Windows:
 
 ```shell
 (ai8x-training) $ pip3 install -r requirements-win-cu11.txt
@@ -406,7 +406,7 @@ After a small delay of typically a day, a “Release” tag is created on GitHub
 
 In addition to code updated in the repository itself, **submodules and Python libraries may have been updated as well**.
 
-Major upgrades (such as updating from PyTorch 1.8 to PyTorch 1.13) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
+Major upgrades (such as updating from PyTorch 1.8 to PyTorch 2.0) are best done by removing all installed wheels. This can be achieved most easily by creating a new folder and starting from scratch at [Upstream Code](#upstream-code). Starting from scratch is also recommended when upgrading the Python version.
 
 For minor updates, pull the latest code and install the updated wheels:
 
@@ -414,7 +414,7 @@ For minor updates, pull the latest code and install the updated wheels:
 (ai8x-training) $ git pull
 (ai8x-training) $ git submodule update --init
 (ai8x-training) $ pip3 install -U pip setuptools
-(ai8x-training) $ pip3 install -U -r requirements.txt # or requirements-cu11.txt with CUDA 11.x
+(ai8x-training) $ pip3 install -U -r requirements.txt # or requirements-cu11.txt with CUDA 11/12
 ```
 
 ##### MSDK Updates
@@ -659,7 +659,7 @@ The MAX78000/MAX78002 MSDK is available as a git repository. The repository cont
       $ pacman -S --needed base filesystem msys2-runtime make
       ```
 
-5. Install packages for OpenOCD. OpenOCD binaries are available in the “openocd” sub-folder of the ai8x-synthesis repository. However, some additional dependencies are required on most systems. See [openocd/Readme.md](openocd/Readme.md) for a list of packages to install, then return here to continue.
+5. Install packages for OpenOCD. OpenOCD binaries are available in the “openocd” sub-folder of the ai8x-synthesis repository. However, some additional dependencies are required on most systems. See [openocd/README.md](https://github.com/MaximIntegratedAI/ai8x-synthesis/blob/develop/openocd/README.md) for a list of packages to install, then return here to continue.
 
 6. Add the location of the toolchain binaries to the system path.
 
@@ -1304,7 +1304,7 @@ Before the first training session, check that hardware acceleration is available
    (ai8x-training) $ python check_cuda.py
    System:                 linux
    Python version:         3.8.16 (default, Feb  9 2023, 14:12:01) [GCC 9.3.0]
-   PyTorch version:        1.13.1+cu117
+   PyTorch version:        2.0.0+cu118
    CUDA/ROCm acceleration: available in PyTorch
    MPS acceleration:       NOT available in PyTorch
  ```
@@ -1314,8 +1314,8 @@ CUDA can be diagnosed using `nvidia-smi -q`:
 ```shell
 (ai8x-training) $ nvidia-smi -q
 ...
-Driver Version                            : 515.65.01
-CUDA Version                              : 11.7
+Driver Version                            : 525.85.12
+CUDA Version                              : 12.0
 
 Attached GPUs                             : 1
 GPU 00000000:01:00.0
@@ -1882,7 +1882,6 @@ If the model initially trains correctly, but the quantized performance is signif
 
 If quantization-aware training is not desired, post-training quantization can be improved using more sophisticated methods. For example, see
 <https://github.com/pytorch/glow/blob/master/docs/Quantization.md>,
-<https://github.com/ARM-software/ML-examples/tree/master/cmsisnn-cifar10>,
 <https://github.com/ARM-software/ML-KWS-for-MCU/blob/master/Deployment/Quant_guide.md>,
 or Distiller’s approach (installed with this software).
 
@@ -2489,7 +2488,7 @@ This key describes whether to activate the layer output (the default is to not a
 
 ##### `quantization` (Optional)
 
-This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, or `8` (the default is based on the range of the layer’s weights). Specifying a `quantization` that is smaller than what the weights require results in an error message. By default, the value is automatically derived from the weights.
+This key describes the width of the weight memory in bits and can be `1`, `2`, `4`, `8`, or `binary` (MAX78002 only). Specifying a `quantization` that is smaller than what the weights require results in an error message. The default value is based on the `weight_bits` field in `state_dict` read from the quantized checkpoint for the layer.
 
 *On MAX78002 only, `binary` sets the alternate 1-bit representation of –1/+1.*
 
