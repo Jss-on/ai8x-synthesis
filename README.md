@@ -1,6 +1,6 @@
 # ADI MAX78000/MAX78002 Model Training and Synthesis
 
-April 27, 2023
+May 1, 2023
 
 ADI’s MAX78000/MAX78002 project is comprised of five repositories:
 
@@ -1335,7 +1335,7 @@ GPU 00000000:01:00.0
 
 The main training software is `train.py`. It drives the training aspects, including model creation, checkpointing, model save, and status display (see `--help` for the many supported options, and the `scripts/train_*.sh` scripts for example usage).
 
-The  `models/` folder contains models that fit into the MAX78000 or MAX78002’s  weight memory. These models rely on the MAX78000/MAX78002 hardware operators that are defined in `ai8x.py`.
+The `models/` folder contains models that fit into the MAX78000 or MAX78002’s weight memory. These models rely on the MAX78000/MAX78002 hardware operators that are defined in `ai8x.py`.
 
 To train the FP32 model for MNIST on MAX78000 or MAX78002, run `scripts/train_mnist.sh` from the `ai8x-training` project. This script will place checkpoint files into the log directory. Training makes use of the Distiller framework, but the `train.py` software has been modified slightly to improve it and add some MAX78000/MAX78002 specifics.
 
@@ -1351,7 +1351,9 @@ Since training can take a significant amount of time, the training script does n
    $ scripts/train_mnist.sh --workers=1
    ```
 
-3. On CUDA-capable machines, the training script by default uses PyTorch 2.0’s [`torch.compile()` feature](https://pytorch.org/docs/stable/generated/torch.compile.html) which improves execution speed. However, some models may not support this feature. It can be disabled using the command line option
+3. On resource constrained systems, training may abort with an error message such as `RuntimeError: unable to open shared memory object </torch_..._...> in read-write mode`. Add `--workers=0` when running the training script.
+
+4. On CUDA-capable machines, the training script by default uses PyTorch 2.0’s [`torch.compile()` feature](https://pytorch.org/docs/stable/generated/torch.compile.html) which improves execution speed. However, some models may not support this feature. It can be disabled using the command line option
    `--compiler-mode none`
    Disabling `torch.compile()` may also be necessary when using AMD ROCm acceleration.
 
